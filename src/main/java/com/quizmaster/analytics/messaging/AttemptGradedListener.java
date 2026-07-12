@@ -14,8 +14,7 @@ public class AttemptGradedListener {
 
     private final AnalyticsIngestService ingestService;
 
-    @KafkaListener(topics = KafkaTopics.ATTEMPT_GRADED, groupId = "analytics-service",
-            autoStartup = "${app.kafka.enabled:true}")
+    @KafkaListener(topics = KafkaTopics.ATTEMPT_GRADED, groupId = "analytics-service")
     public void onAttemptGraded(AttemptGradedEvent event) {
         ingestService.ingest(event);
     }
