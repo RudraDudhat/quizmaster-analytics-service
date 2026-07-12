@@ -3,8 +3,11 @@ package com.quizmaster.analytics.service;
 import com.quizmaster.analytics.dto.*;
 import com.quizmaster.analytics.entity.AttemptRecord;
 import com.quizmaster.analytics.repository.AttemptRecordRepository;
+import com.quizmaster.analytics.repository.StudentPerformanceProjection;
 import lombok.RequiredArgsConstructor;
+import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -153,6 +156,61 @@ public class AnalyticsQueryService {
                 .bestScore(best)
                 .passRate(passRate)
                 .recentAttempts(recent)
+                .build();
+    }
+
+    // ═══════════════════════════════════════════════════════
+    // PER-QUIZ ATTEMPTS (paged table)
+    // ═══════════════════════════════════════════════════════
+
+    public Page<QuizAttemptRowResponse> quizAttempts(String quizUuid, Pageable pageable) {
+        return repository.findByQuizUuid(quizUuid, pageable)
+                .map(r -> QuizAttemptRowResponse.builder()
+                        .attemptUuid(r.getAttemptUuid())
+                        .studentUserId(r.getStudentUserId())
+                        .studentEmail(r.getStudentEmail())
+                        .marksObtained(r.getMarksObtained())
+                        .totalMarksPossible(r.getTotalMarksPossible())
+                        .percentage(r.getPercentage())
+                        .isPassed(r.getIsPassed())
+                        .correctCount(r.getCorrectCount())
+                        .wrongCount(r.getWrongCount())
+                        .skippedCount(r.getSkippedCount())
+                        .autoSubmitted(r.isAutoSubmitted())
+                        .gradedAt(r.getGradedAt())
+                        .build());
+    }
+
+    // ═══════════════════════════════════════════════════════
+    // PER-STUDENT PERFORMANCE (paged aggregate)
+    // ═══════════════════════════════════════════════════════
+
+    public Page<StudentPerformanceResponse> studentPerformance(Pageable pageable) {
+        return repository.findStudentPerformance(pageable).map(this::toPerformanceRow);
+    }
+
+    private StudentPerformanceResponse toPerformanceRow(StudentPerformanceProjection p) {
+        long total = p.getTotalAttempts() == null ? 0 : p.getTotalAttempts();
+        long passed = p.getPassCount() == null ? 0 : p.getPassCount();
+        long failed = p.getFailCount() == null ? 0 : p.getFailCount();
+
+        BigDecimal avg = p.getAverageScore() == null
+                ? BigDecimal.ZERO
+                : BigDecimal.valueOf(p.getAverageScore()).setScale(2, RoundingMode.HALF_UP);
+        BigDecimal passRate = total > 0
+                ? BigDecimal.valueOf(passed).multiply(HUNDRED).divide(BigDecimal.valueOf(total), 2, RoundingMode.HALF_UP)
+                : BigDecimal.ZERO;
+
+        return StudentPerformanceResponse.builder()
+                .studentUserId(p.getStudentUserId())
+                .studentEmail(p.getStudentEmail())
+                .totalAttempts(total)
+                .passCount(passed)
+                .failCount(failed)
+                .averageScore(avg)
+                .bestScore(nz(p.getBestScore()))
+                .passRate(passRate)
+                .lastAttemptAt(p.getLastAttemptAt())
                 .build();
     }
 
